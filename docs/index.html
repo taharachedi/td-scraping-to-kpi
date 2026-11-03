@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Which skills do engineering job postings ask for?</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+  .cards { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .card { flex: 1; min-width: 220px; padding: 1rem; border: 2px solid #0d7c9e; border-radius: 8px; }
+  .card.secondary { border-color: #ccc; }
+  .card .value { font-size: 2rem; font-weight: bold; color: #0d7c9e; }
+  .card .label { font-size: 0.9rem; color: #666; }
+  canvas { margin-top: 1.5rem; }
+  #updated, .note { color: #666; font-size: 0.85rem; }
+</style>
+</head>
+<body>
+  <h1>Which skills do engineering job postings ask for?</h1>
+  <p>For ENSIM's curriculum committee: share of recent Paris-area engineering job postings
+     mentioning a given skill, extracted from the postings' free text by an LLM.
+     Small sample — read as a signal, not a market study.</p>
+  <div class="cards" id="cards">Loading...</div>
+  <canvas id="skillsChart" height="320"></canvas>
+  <p id="updated"></p>
+  <p class="note">Only aggregate counts are published. The raw postings and the per-posting
+     extraction stay local (see <code>.gitignore</code>).</p>
+
+<script>
+fetch('data/kpi.json?t=' + Date.now())
+  .then(r => r.json())
+  .then(data => {
+    if (!data.n_postings_analyzed) {
+      document.getElementById('cards').innerHTML = '<p>No KPI computed yet -- run compute_kpi.py.</p>';
+      return;
+    }
+    const pct = v => (v * 100).toFixed(0) + '%';
+    let html = `
+      <div class="card">
+        <div class="value">${pct(data.kpi_value)}</div>
+        <div class="label">${data.kpi_label} (${data.n_matching} of ${data.n_postings_analyzed} postings)</div>
+        <div class="label">Average ${data.avg_skills_per_posting} skills extracted per posting</div>
+      </div>`;
+    if (data.my_kpi) html += `
+      <div class="card secondary">
+        <div class="value">${pct(data.my_kpi.value)}</div>
+        <div class="label">${data.my_kpi.label} (${data.my_kpi.n_matching} of ${data.n_postings_analyzed})</div>
+      </div>`;
+    if (data.second_kpi) html += `
+      <div class="card secondary">
+        <div class="value">${pct(data.second_kpi.value)}</div>
+        <div class="label">${data.second_kpi.label} (${data.second_kpi.n_matching} of ${data.n_postings_analyzed})</div>
+      </div>`;
+    document.getElementById('cards').innerHTML = html;
+
+    const top = data.top_skills || [];
+    new Chart(document.getElementById('skillsChart'), {
+      type: 'bar',
+      data: {
+        labels: top.map(s => s.skill),
+        datasets: [{ label: 'Postings mentioning this skill', data: top.map(s => s.count), backgroundColor: '#0d7c9e' }],
+      },
+      options: {
+        indexAxis: 'y',
+        plugins: {
+          legend: { display: false },
+          title: { display: true, text: 'Most-mentioned skills across analyzed postings' },
+        },
+      },
+    });
+
+    document.getElementById('updated').textContent = `Data last computed ${data.generated_at}`;
+  })
+  .catch(err => {
+    document.getElementById('cards').innerHTML = '<p>Could not load KPI (' + err + ').</p>';
+  });
+</script>
+</body>
+</html>
